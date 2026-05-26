@@ -1,6 +1,6 @@
 # swirlx_projects — meta repo for CFD integration analysis
 
-4 CFD 프로젝트 통합 분석 + plugin 추출의 hub. 맥미니 단일 Claude Code 세션이 처음 들어왔을 때의 진입점.
+4 CFD 프로젝트 통합 분석 + plugin 추출의 hub. 통합 분석/추출 시작 시 진입점 — **위치는 사용자 선택** (Windows / 맥미니 어디든 OK; 분석은 OS-agnostic이라 어디서든 가능, OS-specific 검증만 해당 OS에서).
 
 **최종 목적**: SwirlX CFD automation을 동료들이 자유롭게 활용할 수 있는 상태. 본체는 **C (plugin 단위 모듈화 + 배포)** — dashboard 등록은 협업 페이스 따라 자연스럽게. 자세한 milestone은 아래 §"Milestone" 섹션.
 
@@ -20,21 +20,32 @@
 
 이 통합 환경의 맥미니는 두 역할을 동시 수행:
 
-1. **Plugin 추출 dev hub** — 4 프로젝트 통합 분석 + plugin 단위 추출 작업의 자리. 사용자가 Claude Code 단일 세션 열어서 작업.
+1. **Plugin 추출 dev hub (옵션)** — 4 프로젝트 통합 분석 + plugin 단위 추출 작업의 자리. 사용자가 평소 Windows에서 작업하므로 거기서 진행 중 (맥미니에서도 가능 — 분석은 OS-agnostic). OS-specific 검증(Fluent는 Windows/AWS, OpenFOAM은 맥미니/AWS)만 해당 OS에서.
 2. **Dashboard production host** — 사용자 + 동료가 PR-based로 협업한 dashboard repo를 사용자가 PR merge 후 맥미니에서 production deploy.
 
 두 역할이 같은 머신에 공존. Dashboard repo는 통합 분석 작업과 별도 위치에 checkout 권장 (구체 경로는 사용자 선택). 아래 setup의 디렉토리 이름/경로 역시 참고용 예시.
 
-## 맥미니 setup
+## 작업 환경 setup (어디서든)
+
+5 repo clone — 디렉토리 위치는 사용자 선택. 예시:
 
 ```bash
+# Windows (예: D:\Work\Claude\<your-folder>)
+mkdir d:\Work\Claude\your-folder ; cd /d d:\Work\Claude\your-folder
+
+# 또는 맥미니 (예: ~/cfd-projects/)
 mkdir -p ~/cfd-projects && cd ~/cfd-projects
+```
+
+그 다음 5 repo clone:
+
+```bash
 for r in cfd_agent TOP_design two_fluid_doe new_lattice swirlx_projects; do
   git clone https://github.com/SeungbinKo-SwirlX/$r.git
 done
 ```
 
-OpenFOAM v2312 설치 (New Lattice + TOP_design 공통):
+OpenFOAM v2312 설치 (맥미니에서, `cfd-solver-openfoam` plugin 검증 시점에 필요 — 분석/추출 단계에선 불필요):
 ```bash
 brew install --cask openfoam
 # 또는 https://www.openfoam.com/download/install-binary-macos
@@ -47,7 +58,7 @@ AWS bridge 복제 (cfd_agent + TOP_design용):
 - 상세 절차: [cfd_agent/docs/aws_integration_state.md](https://github.com/SeungbinKo-SwirlX/cfd_agent/blob/main/docs/aws_integration_state.md) §"Bridge state on this Windows dev machine"
 - TOP_design 측 절차: [TOP_design/WINDOWS_TO_LINUX.md](https://github.com/SeungbinKo-SwirlX/TOP_design/blob/main/WINDOWS_TO_LINUX.md)
 
-## 맥미니 새 세션의 첫 prompt 제안
+## 새 세션의 첫 prompt 제안 (어디서든)
 
 `~/cfd-projects/`에서 `claude` 실행 후:
 
