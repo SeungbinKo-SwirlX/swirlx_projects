@@ -138,7 +138,27 @@
 → Two_Fluid_DOE needs README + CLAUDE.md added before plugin extraction so the lifted logic has provenance docs.
 → TOP_design's `PORTING_CHECKLIST.md` is a strong reference for the all-4 Mac mini move.
 
-## Recommended next steps (post-consolidation)
+## M2 progress (2026-05-27)
+
+**Sequence revised**: cfd-aws-cluster + cfd-solver-fluent first (was F/A in earlier plan), motivation = colleague workstation contention (one shared workstation + DCV single-session blocks Fluent access; AWS dispatch via Fluent native WebUI solves it).
+
+| Plugin | Status | LoC (prod) | Tests | E2E |
+|---|---|---|---|---|
+| `cfd-aws-cluster` | v0.1.0 extracted | 658 | 33/33 PASS | ✅ ping + squeue against real head |
+| `cfd-solver-fluent` | v0.1.0 Phase A | 480 Py + 258 _server + sbatch | 15/15 PASS | params + cluster smoke OK |
+| `cfd_agent` wiring | refactored | session.py 522→75 LoC | local t_pipe regression PASS (baseline-exact gates) | AWS Fluent e2e deferred |
+
+**Plugin candidates revisited (10 total = 6 INVENTORY + 4 extras found during M2):**
+
+The original 6 (A-F) above remain accurate. Additional candidates surfaced during source-code walk:
+- **G `cfd-orchestrator`**: NL→YAML→5-phase pipeline (cfd_agent/run.py + _interactive.py 85 LoC). cfd_agent's identity, more "framework" than "plugin".
+- **H `cfd-verify`**: mass/energy/orthogonal-quality gates (post_basic_reports in cfd_agent + TOP_design verify section + new_lattice residual monitor). 4/4. ~200 LoC.
+- **I `cfd-post`**: contour/vector/y+/HTML (cfd_agent/solver/post_viz.py + html_report.py). 2-3/4. May split Fluent vs OpenFOAM.
+- **J `cfd-mesh-validate`**: topology checker (cfd_agent topology_check.py + two_fluid_doe _check_topology.py + 01_build_geometry self-validation). 4/4. Pure-functional.
+
+**Dependency graph (leaf nodes first)**: F, J, H, E, D have 0 deps. A optionally depends on J. C-Fluent / C-OpenFOAM depend on A + H + I + F. B depends on D + F. G top-level.
+
+## Recommended next steps (post-M2 Phase A)
 
 1. **Verify git state** for all 4 (`git remote -v` in each); init + initial commit where missing.
 2. **Push** to common remote (GitHub or Mac mini bare repo).

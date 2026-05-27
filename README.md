@@ -100,8 +100,8 @@ AWS bridge 복제 (cfd_agent + TOP_design용):
 | Milestone | 내용 | 상태 |
 |---|---|---|
 | M1 | INVENTORY + git push 5 repos | DONE 2026-05-26 |
-| M2 | 첫 plugin 추출 (cfd-notify or cfd-geometry) — 패턴 검증 | Next |
-| M3 | 핵심 plugin 6개 추출 (cfd-geometry, cfd-aws-cluster, cfd-solver-{fluent,openfoam}, cfd-platform-bridge, cfd-notify) | **본체 끝** |
+| M2 | 첫 plugin 추출 — 패턴 검증 (cfd-aws-cluster + cfd-solver-fluent Phase A; workstation contention 동기) | DONE 2026-05-27 (Phase A; AWS Fluent e2e 미검증) |
+| M3 | 핵심 plugin 6개 추출 (남은: cfd-geometry, cfd-solver-openfoam, cfd-platform-bridge, cfd-notify + cfd-solver-fluent Phase B/C 흡수) | **본체 끝** |
 | M4 | 동료 plugin install (Claude Code direct) | 동료 active해질 때 |
 | M5 | Dashboard plugin consumer로 동작 | Dashboard 협업 페이스 따라 |
 
