@@ -140,7 +140,9 @@
 
 ## M2 progress (2026-05-27)
 
-**Sequence revised**: cfd-aws-cluster + cfd-solver-fluent first (was F/A in earlier plan), motivation = colleague workstation contention (one shared workstation + DCV single-session blocks Fluent access; AWS dispatch via Fluent native WebUI solves it).
+**Sequence revised**: cfd-aws-cluster + cfd-solver-fluent first (was F/A in earlier plan), motivation = colleague workstation contention (one shared workstation + DCV single-session blocks Fluent access; AWS dispatch moves the heavy solve off the shared box).
+
+> **Update 2026-05-30 — GUI access pivot**: contention is solved by **per-user DCV** (head node multi-session, one DCV session per colleague), not by the Fluent Web UI. The Web UI (:5000) is **demoted to an opt-in fallback** (`runtime.aws.web_ui` default false) for a DCV-less browser peek. Detailed access-model + login-node analysis: `PER_USER_DCV.md`.
 
 | Plugin | Status | LoC (prod) | Tests | E2E |
 |---|---|---|---|---|
