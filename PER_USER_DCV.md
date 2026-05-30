@@ -165,11 +165,10 @@ apt/sshd patching becomes a maintenance burden.
 
 ---
 
-## 6. Thin DCV helper — spec (deferred, not yet implemented)
+## 6. Thin DCV helper — implemented (`cfd-aws-cluster`)
 
-Once NICE DCV multi-session is stood up (head or login node), a thin convenience
-wrapper belongs in **`cfd-aws-cluster`** (infra layer). It lives in its own
-module so `ClusterClient` stays focused on compute, and it manages session
+A thin convenience wrapper lives in **`cfd_aws_cluster/dcv.py`** (infra layer; its
+own module so `ClusterClient` stays focused on compute). It manages session
 **lifecycle only** — provisioning (instance / AMI / account) stays infra.
 
 Proposed `cfd_aws_cluster/dcv.py`:
@@ -177,23 +176,23 @@ Proposed `cfd_aws_cluster/dcv.py`:
 @dataclass
 class DcvSession:
     session_id: str
-    owner: str
-    host: str                        # DCV server ssh alias
+    owner: str | None = None
+    session_type: str | None = None
+    host: str | None = None          # DCV server ssh alias
     @property
     def web_url(self) -> str:        # https://{host}:8443/#{session_id}  (hint)
 
-def list_dcv_sessions(cluster, *, host=None) -> list[DcvSession]
-def ensure_dcv_session(cluster, *, session_id="cfd", owner=None, host=None) -> DcvSession
+def list_dcv_sessions(cluster) -> list[DcvSession]
+def ensure_dcv_session(cluster, session_id, *, owner=None) -> DcvSession
 ```
 - Reuses `ClusterClient.ssh()` as transport; if the DCV host ≠ compute head, the
   caller passes a `ClusterClient(head_alias=dcv_host)` → **topology-agnostic**.
 - Safety: `dcv list-sessions` / `dcv create-session` only — **no kill**. Composes
   with the package's "never pattern-kill" rule.
-- 8443 reachability/tunnel is infra's concern; use
-  `TunnelManager(cluster, remote_port=8443)` if a tunnel is needed.
-- ⚠️ **Parser unverified**: the `dcv list-sessions` output format has not been
-  seen on the real cluster. Finalize the parse against a real sample before
-  shipping; until then, best-effort + flagged.
+- 8443 reachability/tunnel/tailnet is infra's concern; `web_url` is a hint only.
+- Parser **confirmed** against the real output `Session: 'ID' (owner:OWNER
+  type:TYPE)` (Amazon DCV 2024.0), parsed field-by-field so extra fields don't
+  break it. 7 unit tests (mocked ssh). Exported from `cfd_aws_cluster`.
 
 ---
 
@@ -204,9 +203,9 @@ def ensure_dcv_session(cluster, *, session_id="cfd", owner=None, host=None) -> D
   deleted; the `runtime.interactive` 5-phase `proceed.ok` pauses are untouched —
   they share the file but are an independent mechanism). Per-user DCV chosen as
   the GUI access model. **head multi-session** chosen for now (cost/scale);
-  login node documented as the graduation path. Thin DCV helper spec'd;
-  implementation deferred until DCV multi-session is live (need a real
-  `dcv list-sessions` sample).
+  login node documented as the graduation path. Thin DCV helper **implemented**
+  in cfd-aws-cluster (`dcv.py` — `list_dcv_sessions` / `ensure_dcv_session`,
+  parser confirmed against the real output, 7 unit tests).
 
 ---
 
