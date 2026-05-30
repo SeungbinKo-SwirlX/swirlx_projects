@@ -207,3 +207,150 @@ def ensure_dcv_session(cluster, *, session_id="cfd", owner=None, host=None) -> D
   login node documented as the graduation path. Thin DCV helper spec'd;
   implementation deferred until DCV multi-session is live (need a real
   `dcv list-sessions` sample).
+
+---
+
+## 8. Setup procedure + manual workflow (deferred — colleagues actively using Fluent)
+
+Setup is **not** executed yet (the cluster is in active use). This section is the
+runbook to follow when it's free.
+
+### Locked decisions (2026-05-30)
+- **A — OS accounts**: shared **`ubuntu`** **now**. Collision-freedom comes from
+  separate *virtual sessions* (separate displays), **not** from separate accounts —
+  so one account + N virtual sessions already gives "no input collision." Per-user
+  accounts are deferred as a later *isolation / security / audit* upgrade. The
+  shared→per-user migration is **additive (no teardown)** — see the Migration
+  subsection — so starting shared and moving later costs no rework.
+- **B — session lifecycle**: **(i) admin pre-creates** the per-user virtual
+  sessions, hardened with a **boot systemd unit** so they survive head reboots.
+  Rationale: most colleagues drive Fluent **manually** (DCV in → run the salloc
+  script by hand) without going through cfd_agent/cfd-aws-cluster, so there is no
+  code path to trigger an on-demand helper — sessions must exist independently.
+  The (iii) `ensure_dcv_session` helper (§6) stays a *later* convenience for the
+  cfd_agent-driven path only.
+- **C — client**: **browser default** (zero install, fine for monitoring). Native
+  DCV client noted as an option for heavy interactive work (better keyboard/mouse
+  fidelity for Fluent's middle-button rotate + shortcuts; its QUIC/UDP speed edge
+  is **moot over an SSM TCP tunnel**).
+
+### Pre-req discovery (read-only, safe while colleagues work) — run on the head
+```bash
+cat /etc/os-release          # distro + version (e.g. Ubuntu 22.04)
+uname -r                     # kernel
+dcv version 2>/dev/null || dcvserver --version   # DCV server version
+dpkg -l | grep -iE 'nice-dcv|nice-xdcv'          # installed DCV pkgs (xdcv = virtual-session support)
+systemctl is-active dcvserver                     # is the DCV server running
+dcv list-sessions            # current sessions — capture this output: it finalizes the §6 helper parser
+```
+
+### Discovery result (2026-05-30) — multi-session already provisioned
+Head: **Ubuntu 24.04.4 LTS** (kernel `6.8.0-1029-aws`), **Amazon DCV 2024.0
+(r18131)**. Installed: `nice-dcv-server` + `nice-dcv-web-viewer` +
+**`nice-xdcv`** (2024.0.631-1, virtual-session support). `dcvserver` is
+**active**, and the current session is already `type:virtual` (owner `ubuntu`).
+→ The server/packages are done; "going multi-session" is just **creating more
+virtual sessions**. The install steps below are mostly N/A.
+
+`dcv list-sessions` output format (confirmed → finalizes the §6 helper parser):
+`Session: 'ID' (owner:OWNER type:TYPE)`.
+
+### Setup steps (mostly already satisfied)
+1. ~~Install `nice-dcv-server` + `nice-xdcv` + WM~~ — already installed (verify a
+   WM/desktop exists for the virtual sessions). No `nice-dcv-gl` (no GPU → Mesa
+   software GL).
+2. ~~`systemctl enable --now dcvserver`~~ — already active. (DCV free + auto-
+   licensed on EC2.)
+3. **Boot systemd unit** (`After=dcvserver.service`) that creates one virtual
+   session per colleague, owned by `ubuntu`:
+   `dcv create-session --type virtual --owner ubuntu <name>`. (This is the only
+   remaining setup task for sessions.)
+4. Expose port 8443 — see the access-posture decision below.
+
+### Manual user workflow (per colleague)
+1. **Reach the DCV server** — `https://localhost:8443` after an SSM/SSH tunnel of
+   8443 (matches today's private posture), **or** `https://<head-public-ip>:8443`
+   if a public IP + SG-restricted 8443 is chosen.
+2. **Log in as `ubuntu`** (shared password, DCV PAM auth).
+3. **Open your assigned session URL** `…:8443/#<your-session>` → your own virtual
+   session (own display). *Separation is by convention under shared ubuntu — use
+   your own session URL; opening someone else's session-id shares their screen.*
+4. Inside your session: terminal → run the salloc + `ssh -Y` script → Fluent GUI
+   forwards to **your** session's display. Drive Fluent by hand. (`$DISPLAY` in the
+   session is your virtual display, so the script's `:0` fallback never triggers.)
+5. Disconnect anytime (close browser) → session + Fluent keep running; reconnect
+   to the same URL later.
+
+### ⚠️ Open decision — access posture (decide before relying on any SG rule)
+Head public IP: `3.129.124.163`. **SG confirmed (2026-05-30): 8443/TCP open to
+`0.0.0.0/0`** — the DCV login is reachable from the entire internet, and with
+shared `ubuntu` the *effective firewall is a single shared password*. Colleagues
+roam office/home (dynamic IPs), so SG IP-restriction is impractical. **Stopgap
+regardless of the path chosen: a strong unique `ubuntu` password + `fail2ban` now;
+don't leave weak-shared-password + `0.0.0.0/0`.**
+
+- **Public IP + open 8443**: zero colleague setup (`https://3.129.124.163:8443`).
+  BUT with **shared `ubuntu`**, the *effective firewall is one shared password* —
+  the only gate between the internet and a Fluent desktop that holds AWS creds +
+  FSx + cluster access. Single shared credential = single point of failure; the
+  session shell can reach AWS; DCV's default cert is self-signed; audit logs all
+  say "ubuntu". This re-opens the §8-A account decision: **if you go public,
+  reconsider per-user OS accounts** (individual credential + revoke + audit), and
+  at minimum **restrict the SG to known office IPs** + a strong unique password.
+- **SSM/SSH tunnel 8443 → localhost**: no public head exposure (most secure);
+  consistent with the current bridge. Each user runs a port-forward then browses
+  `https://localhost:8443`. Friction = each colleague needs AWS creds + SSM plugin
+  (small if they already use the cfd_agent path; larger for pure-DCV users).
+- **Tailscale (recommended — a tailnet is already in use for the Mac-mini dashboard)**:
+  install Tailscale on the head (joins the tailnet, gets a `100.x` IP), drop the
+  public 8443 SG rule, colleagues reach the head's tailnet IP. WireGuard mesh that's
+  **always-on** (no per-use connect → manual workflow truly unchanged), works from any
+  roaming network, authenticates each device by **Tailscale identity** (a per-user gate
+  at the network door, stronger than a shared password), and carries UDP so DCV QUIC
+  works (native-client perf bonus). Scope with **Tailscale ACLs** (who may reach
+  `head:8443`). Durability: install via a ParallelCluster **custom action + tagged auth
+  key** so the head re-joins after reboot/replacement.
+- **Generic VPN (AWS Client VPN / WireGuard)**: same idea if not using Tailscale —
+  one-time client install + **per-use connect (1 click)**; workflow otherwise unchanged;
+  `0.0.0.0/0` dropped, head reached on its private IP.
+- **Decision driver (roaming team)**: SG IP-restriction is out, so it's **VPN**
+  (most secure, +1-click-per-use) vs **public + harden** (`fail2ban` + real TLS +
+  strong per-user passwords; zero per-use friction, residual internet exposure).
+  Security-first → VPN; lowest-friction → public+harden. Either way, per-user
+  accounts are the auth-layer upgrade and the `0.0.0.0/0` stopgap applies now.
+
+### Migration: shared `ubuntu` → per-user accounts (documented, deferred)
+**Additive — no teardown** of the DCV server, `nice-xdcv`, the multi-session setup,
+the session-creating systemd unit *pattern*, the salloc+`ssh -Y` workflow, or the
+network/SG. So starting shared now and migrating later costs no rework. Steps:
+
+1. `sudo useradd -m -s /bin/bash <user>` + `sudo passwd <user>` × N.
+2. Verify each account can run the workflow: **Slurm submit** (munge is host-level,
+   so new users generally can submit — check for accounting associations); **`/fsx`
+   access** (group/permissions); **Fluent license env** (`AWP_ROOT261` etc. set
+   globally via `/etc/profile.d`). The manual DCV+salloc path needs **no** AWS creds
+   (that's the cfd_agent dispatch path), so don't replicate `~/.aws`.
+3. Retarget the session systemd unit: `dcv create-session --owner <user>` per user
+   instead of all `--owner ubuntu`.
+4. Colleagues re-bookmark their new session URL + log in as themselves.
+5. **Durability**: manually-added users may not survive a ParallelCluster head
+   update/replacement — keep the `useradd` loop in a reprovision script (same
+   concern as the session-creation unit). LDAP/AD is the "proper" but
+   overkill-for-5 alternative.
+
+Benefit of migrating: individual revoke (offboarding = delete the account), per-user
+audit, no shared password to rotate. This is the natural trigger if shared-account
+**tracking/attribution** becomes a problem.
+
+### Admin / vendor access is orthogonal (do not break it)
+The AWS-setup vendor administers the cluster (adding compute nodes, Slurm config) via
+**IAM + SSH/SSM to the head** — a *different door* than DCV 8443. Closing the public
+8443 rule and adding Tailscale for DCV changes only the **GUI door**:
+- Keep the change **scoped to 8443**; leave the SSH/SSM rules untouched. Do **not**
+  tighten the whole SG to tailnet-only, or the vendor's admin path breaks.
+- The vendor's **IAM role** (EC2 / ParallelCluster / Slurm via AWS APIs) is AWS-level
+  and unaffected by any network/DCV change.
+- `ubuntu` stays the admin/system account (per-user DCV accounts are *added*, not a
+  replacement), so the vendor's `ubuntu` SSH access persists.
+- If the vendor ever needs the DCV GUI itself (unlikely — their work is CLI/Slurm),
+  invite their device to the tailnet with a scoped ACL.
